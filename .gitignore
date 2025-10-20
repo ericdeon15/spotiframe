@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+venv/
+.env
+
+# Spotipy auth cache
+.cache
+.cache-*
+
+# IDE files
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
+
