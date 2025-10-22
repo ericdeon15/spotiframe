@@ -1,61 +1,8 @@
-# import time
-# import requests
-# from io import BytesIO
-# from PIL import Image, ImageTk
-# import tkinter as tk
-# import spotipy
-# from spotipy.oauth2 import SpotifyOAuth
-# from dotenv import load_dotenv
+'''
+Sample program of similar visual and functional experience to what is desired for the
+Spotiframe
+'''
 
-# load_dotenv()
-
-# sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
-#     scope="user-read-currently-playing user-read-playback-state"
-# ))
-
-# root = tk.Tk()
-# root.title("Spotify Now Playing")
-# root.geometry("400x500")
-
-# img_label = tk.Label(root)
-# img_label.pack(pady=20)
-
-# title_label = tk.Label(root, text="", font=("Helvetica", 14, "bold"), wraplength=350)
-# title_label.pack()
-# artist_label = tk.Label(root, text="", font=("Helvetica", 12), wraplength=350)
-# artist_label.pack()
-
-# current_id = None
-
-# def update_track():
-#     global current_id
-#     track = sp.current_user_playing_track()
-
-#     if track and track.get("item"):
-#         item = track["item"]
-#         track_id = item["id"]
-#         if track_id != current_id:
-#             current_id = track_id
-#             name = item["name"]
-#             artists = ", ".join(a["name"] for a in item["artists"])
-#             url = item["album"]["images"][0]["url"]
-
-#             img_data = requests.get(url).content
-#             img = Image.open(BytesIO(img_data)).resize((300, 300))
-#             tk_img = ImageTk.PhotoImage(img)
-#             img_label.configure(image=tk_img)
-#             img_label.image = tk_img
-
-#             title_label.config(text=name)
-#             artist_label.config(text=artists)
-
-#     root.after(1000, update_track)  # refresh every 5 s
-
-# update_track()
-# root.mainloop()
-
-
-import time
 import requests
 from io import BytesIO
 from PIL import Image, ImageTk, ImageStat
