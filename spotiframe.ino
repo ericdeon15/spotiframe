@@ -26,7 +26,7 @@
 // ---- Networking constants ----
 static constexpr uint16_t HTTPS_PORT        = 443;
 static constexpr uint32_t SOCKET_TIMEOUT_MS = 10000;
-static constexpr uint32_t UPDATE_INTERVAL_MS = 10000;
+static constexpr uint32_t UPDATE_INTERVAL_MS = 3000;
 
 // ---- Flask/Render host ----
 static const char* SERVER_HOST = SPOTIFRAME_HOST; // from secrets.h
@@ -39,6 +39,9 @@ static constexpr uint16_t TITLE_COLOR   = TFT_WHITE;
 
 static constexpr float ARTIST_SIZE      = 2.5;
 static constexpr uint16_t ARTIST_COLOR  = TFT_CYAN;
+
+// ---- TRACK STATE ----
+String currentID = "";
 
 
 // ====================== Display wiring (Elecrow ESP32-S3 7") ======================
@@ -321,6 +324,7 @@ void setup() {
 }
 
 void loop() {
+  // Reconnect to the WiFI if not connected
   if (WiFi.status() != WL_CONNECTED) {
     uiStatus("Reconnecting WiFi...");
     wifiConnect();
@@ -351,12 +355,20 @@ void loop() {
   DeserializationError err = deserializeJson(doc, jsonPayload);
   String title  = err ? "" : String((const char*)doc["title"]);
   String artist = err ? "" : String((const char*)doc["artist"]);
+  String id = err ? "" : String((const char*)doc["id"]);
 
   if (err) {
     uiStatus("JSON parse error");
     delay(5000);
     return;
   }
+
+  // Avoid redraws if song hasn't changed
+  if (id == currentID) {
+    delay(UPDATE_INTERVAL_MS);
+    return;
+  }
+  currentID = id;
 
   // ---- 2) Fetch PNG (album art) ----
   WiFiClientSecure img;
