@@ -6,11 +6,31 @@ from io import BytesIO
 from PIL import Image
 from dotenv import load_dotenv
 import os
-import spotipy
+from colorthief import ColorThief
 
-RESIZE_PIXELS = 420
 load_dotenv()
 app = Flask(__name__)
+
+# --- Cache state ---
+cached_track_id = None
+cached_payload = {}
+
+# --- Album size ---
+RESIZE_PIXELS = 420
+
+def open_image_and_color(url, get_color=True):
+    response = requests.get(url)
+    response.raise_for_status()
+
+    img = Image.open(BytesIO(response.content)).convert("RGB")
+
+    color_hex = None
+    if get_color:
+        ct = ColorThief(BytesIO(response.content))
+        r, g, b = ct.get_color(quality=1)
+        color_hex = f"#{r:02x}{g:02x}{b:02x}"
+
+    return img, color_hex
 
 def get_spotify_client():
     refresh_token = os.getenv("SPOTIFY_REFRESH_TOKEN")
@@ -34,34 +54,53 @@ sp = get_spotify_client()
 
 @app.route("/current")
 def current():
+    global cached_track_id, cached_payload
+
     track = sp.current_user_playing_track()
+
     if not track or not track.get("item"):
         return jsonify({"status": "stopped"})
+    
+    track_id = item["id"]
+    
+    # Reuse cache if track hasn’t changed
+    if track_id == cached_track_id:
+        return jsonify(cached_payload)
 
     item = track["item"]
     title = item["name"]
     artist = ", ".join(a["name"] for a in item["artists"])
-    song_id = item["id"]
     album_url = item["album"]["images"][0]["url"] if item["album"]["images"] else None
+    _, color_hex = open_image_and_color(album_url)
 
-    return jsonify({
+    payload = {
         "title": title,
         "artist": artist,
-        "id": song_id,
+        "id": track_id,
         "album_url": album_url,
+        "color" : color_hex,
         "status": "playing"
-    })
+    }
+
+    cached_track_id = track_id
+    cached_payload = payload
+
+    return jsonify(payload)
 
 @app.route("/album")
 def album():
-    track = sp.current_user_playing_track()
-    if not track or not track.get("item"):
-        return "no track", 404
-    url = track["item"]["album"]["images"][0]["url"]
-    img = Image.open(BytesIO(requests.get(url).content))
+    global cached_payload
+
+    url = cached_payload.get("album_url")
+
+    if not url:
+        return "no cached album", 404
+    
+    img, _ = open_image_and_color(url, get_color=False)
     img = img.resize((RESIZE_PIXELS, RESIZE_PIXELS))
+
     buf = BytesIO()
-    img.save(buf, format="PNG")
+    img.save(buf, "PNG")
     buf.seek(0)
     return send_file(buf, mimetype="image/png")
 
