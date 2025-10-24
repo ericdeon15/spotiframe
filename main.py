@@ -52,6 +52,12 @@ def get_spotify_client():
 
 sp = get_spotify_client()
 
+@app.after_request
+def disable_chunked(response):
+    response.headers["Connection"] = "close"
+    response.headers["Transfer-Encoding"] = "identity"
+    return response
+
 @app.route("/current")
 def current():
     global cached_track_id, cached_payload
