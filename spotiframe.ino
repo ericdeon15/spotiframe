@@ -31,6 +31,16 @@ static constexpr uint32_t UPDATE_INTERVAL_MS = 10000;
 // ---- Flask/Render host ----
 static const char* SERVER_HOST = SPOTIFRAME_HOST; // from secrets.h
 
+// ---- UI constants ----
+static constexpr uint16_t PNG_MARGIN    = 20;
+
+static constexpr float TITLE_SIZE       = 4;
+static constexpr uint16_t TITLE_COLOR   = TFT_WHITE;
+
+static constexpr float ARTIST_SIZE      = 2.5;
+static constexpr uint16_t ARTIST_COLOR  = TFT_CYAN;
+
+
 // ====================== Display wiring (Elecrow ESP32-S3 7") ======================
 class LGFX : public lgfx::LGFX_Device {
 public:
@@ -111,18 +121,84 @@ static void uiStatus(const char* msg) {
   tft.println(msg);
 }
 
-static void drawNowPlaying(const String& title, const String& artist, int yTop) {
-  // Clear a band for text (bottom band or just below image)
-  tft.fillRect(0, yTop - 8, tft.width(), 64, TFT_BLACK);
-  tft.setTextColor(TFT_WHITE);
-  tft.setTextSize(2);
-  tft.setCursor(10, yTop);
-  tft.println(title);
+static void drawNowPlaying(const String& title, const String& artist) {
+  // Text positioning information
+  int xOff = png.getWidth() == 0 ? tft.width() : tft.width() - png.getWidth() - PNG_MARGIN; // Allows for centered song text if PNG fails to open
+  int textCenterX = xOff / 2;
+  int textY = tft.height() / 2; 
+  int maxWidth = xOff - 20;  // padding inside left region
 
-  tft.setTextColor(TFT_CYAN);
-  tft.setCursor(10, yTop + 28);
-  tft.println(artist);
+  tft.setTextDatum(MC_DATUM);
+
+  // Draw title 
+  drawAdaptiveText(
+      title,
+      textCenterX,
+      textY - 20,
+      maxWidth,
+      TITLE_COLOR,
+      TITLE_SIZE
+  );
+
+  // Draw artist
+  drawAdaptiveText(
+      artist,
+      textCenterX,
+      textY + 20,
+      maxWidth,
+      ARTIST_COLOR,
+      ARTIST_SIZE
+  );
 }
+
+/*
+Text is wrapped one time (if needed), the size is reduced to prevent overflow (if needed)
+*/
+static void drawAdaptiveText(
+    const String& text,
+    int centerX,
+    int baseY,
+    int maxWidth,
+    uint16_t color,
+    int baseSize
+) {
+  tft.setTextColor(color);
+  tft.setTextSize(baseSize);
+
+  // Start with entire text
+  String line1 = text;
+  String line2 = "";
+
+  // Step 1: Wrap once if too wide
+  if (tft.textWidth(text) > maxWidth) {
+    int splitIndex = text.lastIndexOf(' ', text.length() / 2);
+    if (splitIndex == -1) splitIndex = text.length() / 2;
+    line1 = text.substring(0, splitIndex);
+    line2 = text.substring(splitIndex + 1);
+  }
+
+  // Step 2: Shrink text until both lines fit or reach size 1
+  int currentSize = baseSize;
+  while ((tft.textWidth(line1) > maxWidth ||
+          (line2.length() > 0 && tft.textWidth(line2) > maxWidth))
+         && currentSize > 1) {
+    currentSize--;
+    tft.setTextSize(currentSize);
+  }
+
+  // Step 3: Draw (centered)
+  int lineSpacing = 24;
+  int totalHeight = (line2.length() > 0) ? lineSpacing : 0;
+  int startY = baseY - totalHeight / 2;
+
+  if (line2.length() > 0) {
+    tft.drawString(line1, centerX, startY);
+    tft.drawString(line2, centerX, startY + lineSpacing);
+  } else {
+    tft.drawString(line1, centerX, baseY);
+  }
+}
+
 
 // ============================ WPA2 Enterprise ============================
 static void wifiConnect() {
@@ -206,13 +282,18 @@ static void readBodyBinary(WiFiClient& c, std::vector<uint8_t>& out) {
 }
 
 // ============================ PNG drawing callback ============================
-// Centers the image on screen and draws one scanline per callback.
+
+/*
+Centers the image on the right side of the screen and draws one scanline per callback.
+*/
 int drawAlbum(PNGDRAW* pDraw) {
   static int xOff = 0, yOff = 0;
   if (pDraw->y == 0) {
     const int imgW = png.getWidth();
     const int imgH = png.getHeight();
-    xOff = (tft.width()  - imgW) / 2;
+    
+    // Center image vertically and offset from right border by 20 pixels
+    xOff = (tft.width()  - imgW) - PNG_MARGIN;
     yOff = (tft.height() - imgH) / 2;
     if (xOff < 0) xOff = 0;
     if (yOff < 0) yOff = 0;
@@ -283,7 +364,6 @@ void loop() {
   img.setTimeout(SOCKET_TIMEOUT_MS);
 
   uiClear();
-  uiStatus("Fetching album...");
 
   if (img.connect(SERVER_HOST, HTTPS_PORT)) {
     img.println("GET /album HTTP/1.1");
@@ -310,9 +390,7 @@ void loop() {
   }
 
   // ---- 3) Draw text beneath image ----
-  const int imgBottom = ((tft.height() - png.getHeight()) / 2) + png.getHeight();
-  const int textY = imgBottom + 12;
-  drawNowPlaying(title, artist, textY);
+  drawNowPlaying(title, artist);
 
   delay(UPDATE_INTERVAL_MS);
 }
