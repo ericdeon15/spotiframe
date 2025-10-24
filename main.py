@@ -41,11 +41,13 @@ def current():
     item = track["item"]
     title = item["name"]
     artist = ", ".join(a["name"] for a in item["artists"])
+    song_id = item["id"]
     album_url = item["album"]["images"][0]["url"] if item["album"]["images"] else None
 
     return jsonify({
         "title": title,
         "artist": artist,
+        "id": song_id,
         "album_url": album_url,
         "status": "playing"
     })
