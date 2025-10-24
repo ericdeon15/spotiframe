@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 import os
 import spotipy
 
+RESIZE_PIXELS = 420
 load_dotenv()
 app = Flask(__name__)
 
@@ -56,7 +57,7 @@ def album():
         return "no track", 404
     url = track["item"]["album"]["images"][0]["url"]
     img = Image.open(BytesIO(requests.get(url).content))
-    img = img.resize((200, 200))
+    img = img.resize((RESIZE_PIXELS, RESIZE_PIXELS))
     buf = BytesIO()
     img.save(buf, format="PNG")
     buf.seek(0)
