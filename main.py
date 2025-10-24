@@ -61,13 +61,13 @@ def current():
     if not track or not track.get("item"):
         return jsonify({"status": "stopped"})
     
+    item = track["item"]
     track_id = item["id"]
     
     # Reuse cache if track hasn’t changed
     if track_id == cached_track_id:
         return jsonify(cached_payload)
 
-    item = track["item"]
     title = item["name"]
     artist = ", ".join(a["name"] for a in item["artists"])
     album_url = item["album"]["images"][0]["url"] if item["album"]["images"] else None
