@@ -31,7 +31,7 @@ def open_image_and_color(url, get_color=True):
         # color_hex = f"#{r:02x}{g:02x}{b:02x}"
         small = img.convert("RGB").resize((50, 50))
         stat = ImageStat.Stat(small)
-        r, g, b = stat.mean[:3]  # just R,G,B
+        r, g, b = [int(x) for x in stat.mean[:3]]
         color_hex = f"#{r:02x}{g:02x}{b:02x}"
 
     return img, color_hex
