@@ -6,7 +6,6 @@ from io import BytesIO
 from PIL import Image, ImageStat
 from dotenv import load_dotenv
 import os
-# from colorthief import ColorThief
 
 load_dotenv()
 app = Flask(__name__)
@@ -26,9 +25,6 @@ def open_image_and_color(url, get_color=True):
 
     color_hex = None
     if get_color:
-        # ct = ColorThief(BytesIO(response.content))
-        # r, g, b = ct.get_color(quality=1)
-        # color_hex = f"#{r:02x}{g:02x}{b:02x}"
         small = img.convert("RGB").resize((50, 50))
         stat = ImageStat.Stat(small)
         r, g, b = [int(x) for x in stat.mean[:3]]
