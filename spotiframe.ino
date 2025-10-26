@@ -26,7 +26,7 @@
 // ---- Networking constants ----
 static constexpr uint16_t HTTPS_PORT        = 443;
 static constexpr uint32_t SOCKET_TIMEOUT_MS = 10000;
-static constexpr uint32_t UPDATE_INTERVAL_MS = 3000;
+static constexpr uint32_t UPDATE_INTERVAL_MS = 2500;
 
 // ---- Flask/Render host ----
 static const char* SERVER_HOST = SPOTIFRAME_HOST; // from secrets.h
@@ -35,10 +35,10 @@ static const char* SERVER_HOST = SPOTIFRAME_HOST; // from secrets.h
 static constexpr uint16_t PNG_MARGIN    = 20;
 
 static constexpr float TITLE_SIZE       = 4;
-static constexpr uint16_t TITLE_COLOR   = TFT_WHITE;
+static const lgfx::IFont* TITLE_FONT    = &fonts::Font0;
 
 static constexpr float ARTIST_SIZE      = 2.5;
-static constexpr uint16_t ARTIST_COLOR  = TFT_CYAN;
+static const lgfx::IFont* ARTIST_FONT   = &fonts::Font0;
 
 // ---- TRACK STATE ----
 String currentID = "";
@@ -124,7 +124,13 @@ static void uiStatus(const char* msg) {
   tft.println(msg);
 }
 
-static void drawNowPlaying(const String& title, const String& artist) {
+uint32_t hexToColor(String hex) {
+  hex.trim();
+  if (hex.startsWith("#")) hex.remove(0, 1);
+  return (uint32_t) strtol(hex.c_str(), NULL, 16);
+}
+
+static void drawNowPlaying(const String& title, const String& artist, uint32_t background) {
   // Text positioning information
   int xOff = png.getWidth() == 0 ? tft.width() : tft.width() - png.getWidth() - PNG_MARGIN; // Allows for centered song text if PNG fails to open
   int textCenterX = xOff / 2;
@@ -137,20 +143,22 @@ static void drawNowPlaying(const String& title, const String& artist) {
   drawAdaptiveText(
       title,
       textCenterX,
-      textY - 20,
+      textY - 30,
       maxWidth,
-      TITLE_COLOR,
-      TITLE_SIZE
+      background,
+      TITLE_SIZE,
+      TITLE_FONT
   );
 
   // Draw artist
   drawAdaptiveText(
       artist,
       textCenterX,
-      textY + 20,
+      textY + 30,
       maxWidth,
-      ARTIST_COLOR,
-      ARTIST_SIZE
+      background,
+      ARTIST_SIZE,
+      ARTIST_FONT
   );
 }
 
@@ -162,11 +170,23 @@ static void drawAdaptiveText(
     int centerX,
     int baseY,
     int maxWidth,
-    uint16_t color,
-    int baseSize
+    uint32_t background,
+    int baseSize,
+    const lgfx::IFont* font
+
 ) {
-  tft.setTextColor(color);
+
+  // Adjust text color depending on color brightness
+  uint8_t r = (background >> 16) & 0xFF;
+  uint8_t g = (background >> 8) & 0xFF;
+  uint8_t b = background & 0xFF;
+
+  float brightness = 0.299f * r + 0.587f * g + 0.114f * b;
+  uint16_t textColor = (brightness > 212) ? TFT_BLACK : TFT_WHITE;
+
+  tft.setTextColor(textColor);
   tft.setTextSize(baseSize);
+  tft.setFont(font);
 
   // Start with entire text
   String line1 = text;
@@ -190,7 +210,7 @@ static void drawAdaptiveText(
   }
 
   // Step 3: Draw (centered)
-  int lineSpacing = 24;
+  int lineSpacing = tft.fontHeight() + 4;
   int totalHeight = (line2.length() > 0) ? lineSpacing : 0;
   int startY = baseY - totalHeight / 2;
 
@@ -252,24 +272,33 @@ static void readHttpHeaders(WiFiClient& c) {
   }
 }
 
-// Read a chunked or plain body and return de-chunked payload (for JSON).
 static String readBodyDechunked(WiFiClient& c) {
   String body;
+
+  // Read everything available
   while (c.connected() || c.available()) {
-    String line = c.readStringUntil('\n');
-    line.trim();
-    if (line.isEmpty()) continue;
-
-    // Skip pure-hex chunk size lines (e.g., "9e", "1a", "0")
-    bool hexLine = true;
-    for (int i = 0; i < line.length(); ++i) {
-      if (!isxdigit(line[i])) { hexLine = false; break; }
-    }
-    if (hexLine) continue;
-
-    body += line;
+    body += c.readString();
+    delay(10);
   }
-  return body;
+
+  // Find the first '{' and the last '}'
+  int start = body.indexOf('{');
+  int end   = body.lastIndexOf('}');
+
+  if (start == -1 || end == -1 || end <= start) {
+    Serial.println("⚠️ No valid JSON object found in response.");
+    Serial.println(body);
+    return "";
+  }
+
+  // Extract the clean JSON substring
+  String jsonPayload = body.substring(start, end + 1);
+
+  Serial.println("Cleaned JSON payload:");
+  Serial.println(jsonPayload);
+  Serial.println("========================");
+
+  return jsonPayload;
 }
 
 // Read raw binary body fully (for PNG), draining the socket.
@@ -353,15 +382,25 @@ void loop() {
 
   StaticJsonDocument<1024> doc;
   DeserializationError err = deserializeJson(doc, jsonPayload);
-  String title  = err ? "" : String((const char*)doc["title"]);
-  String artist = err ? "" : String((const char*)doc["artist"]);
-  String id = err ? "" : String((const char*)doc["id"]);
 
   if (err) {
     uiStatus("JSON parse error");
+    delay(2000);
+    return;
+  }
+
+  String status = doc["status"].as<String>();
+  String title = doc["title"].as<String>();
+  String artist = doc["artist"].as<String>();
+  String id = doc["id"].as<String>();
+  String colorStr = doc["color"].as<String>();
+
+  if (status == "stopped") {
+    // uiStatus("No song currently playing");
     delay(5000);
     return;
   }
+
 
   // Avoid redraws if song hasn't changed
   if (id == currentID) {
@@ -369,13 +408,14 @@ void loop() {
     return;
   }
   currentID = id;
+  uiClear();
+  uint32_t background = hexToColor(colorStr);
+  tft.fillScreen(background);
 
   // ---- 2) Fetch PNG (album art) ----
   WiFiClientSecure img;
   img.setInsecure();
   img.setTimeout(SOCKET_TIMEOUT_MS);
-
-  uiClear();
 
   if (img.connect(SERVER_HOST, HTTPS_PORT)) {
     img.println("GET /album HTTP/1.1");
@@ -402,7 +442,7 @@ void loop() {
   }
 
   // ---- 3) Draw text beneath image ----
-  drawNowPlaying(title, artist);
+  drawNowPlaying(title, artist, background);
 
   delay(UPDATE_INTERVAL_MS);
 }
