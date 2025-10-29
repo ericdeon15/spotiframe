@@ -34,11 +34,11 @@ static const char* SERVER_HOST = SPOTIFRAME_HOST; // from secrets.h
 // ---- UI constants ----
 static constexpr uint16_t PNG_MARGIN = 20;
 
-static constexpr float TITLE_SIZE = 4;
-static const lgfx::IFont* TITLE_FONT = &fonts::Font0;
+static constexpr float TITLE_SIZE = 3;
+static const lgfx::IFont* TITLE_FONT = &fonts::lgfxJapanGothicP_16;
 
-static constexpr float ARTIST_SIZE = 2.5;
-static const lgfx::IFont* ARTIST_FONT = &fonts::Font0;
+static constexpr float ARTIST_SIZE = 2;
+static const lgfx::IFont* ARTIST_FONT = &fonts::lgfxJapanGothicP_16;
 
 // ---- TRACK STATE ----
 String currentID = "";
@@ -209,7 +209,7 @@ static void drawAdaptiveText(
   while ((tft.textWidth(line1) > maxWidth ||
           (line2.length() > 0 && tft.textWidth(line2) > maxWidth))
          && currentSize > 1) {
-    currentSize--;
+    currentSize -= 0.25;
     tft.setTextSize(currentSize);
   }
 
@@ -336,8 +336,8 @@ int drawAlbum(PNGDRAW* pDraw) {
 // ============================ Setup / Loop ============================
 void setup() {
   Serial.begin(115200);
+  Serial0.begin(115200);
   delay(200);
-
   tft.init();
   tft.setRotation(0);
   tft.setBrightness(255);
