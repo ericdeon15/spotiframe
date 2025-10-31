@@ -201,8 +201,11 @@ static void drawAdaptiveText(
   if (tft.textWidth(text) > maxWidth) {
     int splitIndex = text.lastIndexOf(' ', text.length() / 2);
     if (splitIndex == -1) splitIndex = text.length() / 2;
-    line1 = text.substring(0, splitIndex);
+
+    line1 = text.substring(0, splitIndex + 1);
     line2 = text.substring(splitIndex + 1);
+    line1.trim();
+    line2.trim();
   }
 
   int currentSize = baseSize;
