@@ -19,8 +19,6 @@
 
 #include "esp_wifi.h"
 #include "esp_wpa2.h"
-
-// ---- Project configuration ----
 #include "secrets.h" 
 
 // ---- Networking constants ----
@@ -35,10 +33,10 @@ static const char* SERVER_HOST = SPOTIFRAME_HOST; // from secrets.h
 static constexpr uint16_t PNG_MARGIN = 20;
 
 static constexpr float TITLE_SIZE = 3;
-static const lgfx::IFont* TITLE_FONT = &fonts::lgfxJapanGothicP_16;
+static const lgfx::IFont* TITLE_FONT = &fonts::lgfxJapanGothic_24;
 
 static constexpr float ARTIST_SIZE = 2;
-static const lgfx::IFont* ARTIST_FONT = &fonts::lgfxJapanGothicP_16;
+static const lgfx::IFont* ARTIST_FONT = &fonts::lgfxJapanGothic_24;
 
 // ---- TRACK STATE ----
 String currentID = "";
@@ -122,6 +120,8 @@ static void uiClear() {
 }
 
 static void uiStatus(const char* msg) {
+  tft.setFont(&fonts::Font0);
+  tft.setTextSize(2);
   tft.println(msg);
 }
 
@@ -209,7 +209,7 @@ static void drawAdaptiveText(
   while ((tft.textWidth(line1) > maxWidth ||
           (line2.length() > 0 && tft.textWidth(line2) > maxWidth))
          && currentSize > 1) {
-    currentSize -= 0.25;
+    currentSize -= 1;
     tft.setTextSize(currentSize);
   }
 
@@ -233,8 +233,8 @@ static void drawNowPlaying(const String& title, const String& artist, uint32_t b
 
   tft.setTextDatum(MC_DATUM);
 
-  drawAdaptiveText(title, textCenterX, textY - 30, maxWidth, background, TITLE_SIZE, TITLE_FONT);
-  drawAdaptiveText(artist, textCenterX, textY + 30, maxWidth, background, ARTIST_SIZE, ARTIST_FONT);
+  drawAdaptiveText(title, textCenterX, textY - 60, maxWidth, background, TITLE_SIZE, TITLE_FONT);
+  drawAdaptiveText(artist, textCenterX, textY + 60, maxWidth, background, ARTIST_SIZE, ARTIST_FONT);
 }
 
 // ============================ WPA2 Enterprise ============================
@@ -338,6 +338,7 @@ void setup() {
   Serial.begin(115200);
   Serial0.begin(115200);
   delay(200);
+  // delay(3000);
   tft.init();
   tft.setRotation(0);
   tft.setBrightness(255);
