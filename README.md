@@ -100,4 +100,4 @@ FYI: Strawberry frosted donuts are the best ones!
 
 ## License
 
-MIT License
+GNU General Public License v3.0
