@@ -5,15 +5,17 @@
 // PNG decode: bitbank2/PNGdec
 // Wi-Fi: WPA2-Enterprise or WPA2-PSK (configure in secrets.h)
 
+#include <Arduino.h>
+
 #define LGFX_USE_V1
 
 #include <LovyanGFX.hpp>
 #include <lgfx/v1/platforms/esp32s3/Panel_RGB.hpp>
 #include <lgfx/v1/platforms/esp32s3/Bus_RGB.hpp>
-#include "Free_Sans.h"
-#include "LGFX.h"
+#include "Free_Sans.hpp"
+#include "LGFX.hpp"
 
-#include "donut.h"
+#include "donut.hpp"
 
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
@@ -23,7 +25,11 @@
 
 #include "esp_wifi.h"
 #include "esp_wpa2.h"
-#include "secrets.h"
+#include "secrets.hpp"
+
+#include <HardwareSerial.h>
+
+// HardwareSerial Serial0(0);
 
 static constexpr uint16_t HTTPS_PORT = 443;
 static constexpr uint32_t SOCKET_TIMEOUT_MS = 10000;

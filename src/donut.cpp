@@ -1,6 +1,10 @@
-#include "donut.h"
+#include "donut.hpp"
 #include <LovyanGFX.hpp>
-#include "LGFX.h"
+#include "LGFX.hpp"
+
+#include <HardwareSerial.h>
+
+extern HardwareSerial Serial0;
 
 static constexpr float PI_ = 3.14159265f;
 

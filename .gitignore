@@ -22,3 +22,7 @@ secrets.*
 *.eep
 *.elf
 *.bin
+
+# PlatformIO
+.pio/
+
