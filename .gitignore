@@ -16,12 +16,9 @@ venv/
 .DS_Store
 
 # Secrets
-secrets.h
+secrets.*
 
 # Arduino build 
 *.eep
 *.elf
 *.bin
-
-secrets.hpp
-secrets.h
