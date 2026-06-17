@@ -1,4 +1,4 @@
-#include "LGFX.h"
+#include "LGFX.hpp"
 #include <LovyanGFX.hpp>
 
 #ifndef DONUT_H
