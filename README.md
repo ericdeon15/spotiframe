@@ -53,7 +53,9 @@ FYI: Strawberry frosted donuts are the best ones!
 
 - C++
 - Arduino Framework
+- PlatformIO
 - LovyanGFX
+- ArduinoJson
 - PNGdec
 
 ### Backend
@@ -65,6 +67,73 @@ FYI: Strawberry frosted donuts are the best ones!
 ### Deployment
 
 - Render
+
+---
+
+## PlatformIO Setup
+
+The ESP32 firmware is built with PlatformIO using the environment in `platformio.ini`:
+
+```ini
+[env:rymcu-esp32-s3-devkitc-1]
+platform = espressif32
+board = rymcu-esp32-s3-devkitc-1
+framework = arduino
+```
+
+Required device libraries are installed by PlatformIO from `lib_deps`:
+
+- `lovyan03/LovyanGFX`
+- `bblanchon/ArduinoJson`
+- `bitbank2/PNGdec`
+
+Before building, create `include/secrets.hpp`. This file is ignored by git and should contain Wi-Fi credentials plus the backend host. Use `example-secrets.hpp` as the template.
+
+## Useful Commands
+
+Run these from the project root.
+
+Build the firmware:
+
+```sh
+pio run
+```
+
+Upload to the connected ESP32-S3:
+
+```sh
+pio run --target upload
+```
+
+Open the serial monitor:
+
+```sh
+pio device monitor
+```
+
+Build and upload in one command:
+
+```sh
+pio run --target upload && pio device monitor
+```
+
+Clean build artifacts:
+
+```sh
+pio run --target clean
+```
+
+If upload fails because PlatformIO picked the wrong port, list connected devices:
+
+```sh
+pio device list
+```
+
+Then upload with an explicit port:
+
+```sh
+pio run --target upload --upload-port /dev/cu.usbmodemXXXX
+```
 
 ---
 
