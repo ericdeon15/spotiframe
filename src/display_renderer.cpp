@@ -5,11 +5,13 @@
 #include <LovyanGFX.hpp>
 #include "Free_Sans.hpp"
 #include "LGFX.hpp"
+#include "spotiframe_logo.hpp"
 
 extern LGFX tft;
 extern PNG png;
 
 static constexpr uint16_t PNG_MARGIN = 20;
+static constexpr int LOGO_Y = 0;
 
 static constexpr float TITLE_SIZE = 3;
 static const char* TITLE_FONT = "Latin_Hiragana_24";
@@ -36,6 +38,15 @@ void uiStatus(const char* msg) {
   tft.unloadFont();
   tft.setFont(&fonts::Font0);
   tft.setTextSize(2);
+  tft.println(msg);
+  tft.loadFont(Free_Sans);
+}
+
+void uiStatusBottomLeft(const char* msg) {
+  tft.unloadFont();
+  tft.setFont(&fonts::Font0);
+  tft.setTextSize(2);
+  tft.setCursor(10, tft.height() - tft.fontHeight() - 10);
   tft.println(msg);
   tft.loadFont(Free_Sans);
 }
@@ -90,6 +101,20 @@ void fadeBackground(uint32_t fromColor, uint32_t toColor) {
     while (millis() < nextFrame) delay(1);
     nextFrame += FRAME_DELAY_MS;
   }
+}
+
+bool drawScreensaverLogo() {
+  static constexpr int LOGO_WIDTH = 668;
+  const int x = (tft.width() - LOGO_WIDTH) / 2;
+  const bool drawn = tft.drawPng(
+      spotiframe_logo_png,
+      spotiframe_logo_png_len,
+      x,
+      LOGO_Y
+  );
+
+  if (!drawn) Serial.println("Logo PNG draw failed");
+  return drawn;
 }
 
 static void drawAdaptiveText(

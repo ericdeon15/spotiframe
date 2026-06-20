@@ -53,6 +53,7 @@ PNG png;
 static void runInactiveScreensaver(uint32_t durationMs) {
   if (!appState.screensaverActive) {
     tft.fillScreen(TFT_BLACK);
+    drawScreensaverLogo();
     appState.screensaverActive = true;
   }
 
@@ -95,7 +96,7 @@ static void wifiConnect() {
   uiClear();
 
   if (USE_ENTERPRISE) {
-    uiStatus("Connecting (WPA2-Enterprise)...");
+    uiStatusBottomLeft("Connecting...");
 
     esp_wifi_sta_wpa2_ent_clear_identity();
     esp_wifi_sta_wpa2_ent_clear_username();
@@ -108,10 +109,11 @@ static void wifiConnect() {
 
     WiFi.begin(SSID_ENT);
   } else {
-    uiStatus("Connecting (WPA2-PSK)...");
+    uiStatusBottomLeft("Connecting...");
     WiFi.begin(SSID_PSK, PSK_PASSWORD);
   }
 
+  drawScreensaverLogo();
   appState.donutStart = millis();
 
   for (int attempts = 0; attempts < 30 && WiFi.status() != WL_CONNECTED; ++attempts) {
@@ -127,13 +129,13 @@ static void wifiConnect() {
 
     tft.fillScreen(TFT_BLACK);
     tft.setTextColor(TFT_GREEN);
-    uiStatus("Connected!");
+    uiStatusBottomLeft("Connected!");
     tft.setTextColor(TFT_WHITE);
     delay(300);
     tft.fillScreen(TFT_BLACK);
   } else {
     tft.setTextColor(TFT_RED);
-    uiStatus("WiFi connection failed");
+    uiStatusBottomLeft("WiFi connection failed");
     tft.setTextColor(TFT_WHITE);
   }
 }
@@ -174,7 +176,7 @@ void loop() {
   deleteScreensaverSprite();
 
   if (WiFi.status() != WL_CONNECTED) {
-    uiStatus("Reconnecting WiFi...");
+    uiStatus("Reconnecting...");
 
     createScreensaverSprite();
 

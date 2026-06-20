@@ -188,5 +188,5 @@ void DonutScreensaver::update() {
 }
 
 void DonutScreensaver::draw() {
-    this->display->pushImage(250, 90, spriteWidth, spriteHeight, (lgfx::rgb565_t*)sprite->getBuffer());
+    this->display->pushImage(250, 175, spriteWidth, spriteHeight, (lgfx::rgb565_t*)sprite->getBuffer());
 }
