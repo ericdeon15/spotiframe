@@ -150,6 +150,7 @@ void drawNowPlaying(const String& title, const String& artist, uint32_t backgrou
   int textY = tft.height() / 2;
   int maxWidth = xOff - 20;
 
+  tft.loadFont(Free_Sans);
   tft.setTextDatum(MC_DATUM);
 
   drawAdaptiveText(title, textCenterX, textY - 65, maxWidth, background, TITLE_SIZE);

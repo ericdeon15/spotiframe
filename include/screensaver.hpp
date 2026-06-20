@@ -3,7 +3,7 @@
 
 #include <Arduino.h>
 
-void createScreensaverSprite();
+bool createScreensaverSprite();
 void deleteScreensaverSprite();
 void runScreensaverFrame(uint32_t frameDelayMs);
 void runScreensaverUntil(unsigned long startMs, uint32_t durationMs, uint32_t frameDelayMs);

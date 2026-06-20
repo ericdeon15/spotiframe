@@ -48,21 +48,27 @@ void DonutScreensaver::begin(LGFX& display, LGFX_Sprite& sprite) {
   Serial0.println(asciiHeight);
 
 
-  // Allocate the depth buffer
+  // Allocate the depth buffer once so the sprite can be released between polls.
   int bufferSize = this->asciiWidth * this->asciiHeight;
-  this->depthBuffer = new float[bufferSize];
+  if (this->depthBuffer == nullptr) {
+    this->depthBuffer = new float[bufferSize];
+  }
+
   for (int i = 0; i < bufferSize; i++) {
     depthBuffer[i] = -1e9;
   }
 
-  // Initialize rotation parameters
-  this->A = 0;
-  this->B = 0;
-  this->dA = 0.1;
-  this->dB = 0.1;
+  if (!this->initialized) {
+    // Initialize rotation parameters
+    this->A = 0;
+    this->B = 0;
+    this->dA = 0.1;
+    this->dB = 0.1;
 
-  // Initialize the brightness characters
-  this->brightnessChars = ".,-~:;=!*#$@";
+    // Initialize the brightness characters
+    this->brightnessChars = ".,-~:;=!*#$@";
+    this->initialized = true;
+  }
 }
 
 void DonutScreensaver::update() {
@@ -184,4 +190,3 @@ void DonutScreensaver::update() {
 void DonutScreensaver::draw() {
     this->display->pushImage(250, 90, spriteWidth, spriteHeight, (lgfx::rgb565_t*)sprite->getBuffer());
 }
-

@@ -15,7 +15,8 @@ class DonutScreensaver {
     // Rendering resources
     LGFX* display; // the display screen to draw to
     LGFX_Sprite* sprite; // sprite to hold the donut frames
-    float* depthBuffer; // used to determine and keep the nearest pixels
+    float* depthBuffer = nullptr; // used to determine and keep the nearest pixels
+    bool initialized = false;
     bool active; //whether the screen saver is active or not
 
     // Donut geometry parameters

@@ -38,6 +38,8 @@
 static constexpr uint16_t HTTPS_PORT = 443;
 static constexpr uint32_t SOCKET_TIMEOUT_MS = 10000;
 static constexpr uint32_t UPDATE_INTERVAL_MS = 2500;
+static constexpr uint32_t INACTIVE_UPDATE_INTERVAL_MS = 15000;
+static constexpr uint32_t INACTIVITY_TIMEOUT_MS = 15UL * 60UL * 1000UL;
 
 static const char* SERVER_HOST = SPOTIFRAME_HOST;
 
@@ -47,6 +49,41 @@ LGFX tft;
 LGFX_Sprite sprite(&tft);
 DonutScreensaver donut;
 PNG png;
+
+static void runInactiveScreensaver(uint32_t durationMs) {
+  if (!appState.screensaverActive) {
+    tft.fillScreen(TFT_BLACK);
+    appState.screensaverActive = true;
+  }
+
+  if (!createScreensaverSprite()) {
+    delay(durationMs);
+    return;
+  }
+
+  runScreensaverUntil(millis(), durationMs, 5);
+}
+
+static bool fetchCurrentTrack(SpotifyCurrent& current) {
+  WiFiClientSecure client;
+  client.setInsecure();
+  client.setTimeout(SOCKET_TIMEOUT_MS);
+
+  if (!client.connect(SERVER_HOST, HTTPS_PORT)) {
+    Serial.println("Server connect failed");
+    return false;
+  }
+
+  client.println("GET /current HTTP/1.1");
+  client.printf("Host: %s\r\n", SERVER_HOST);
+  client.println("Connection: close\r\n");
+
+  readHttpHeaders(client);
+  const String jsonPayload = readBodyDechunked(client);
+  client.stop();
+
+  return parseSpotifyCurrent(jsonPayload, current);
+}
 
 // ============================ Wi-Fi ============================
 
@@ -133,6 +170,9 @@ void setup() {
 }
 
 void loop() {
+  // Keep the large sprite out of memory while HTTPS requests are active.
+  deleteScreensaverSprite();
+
   if (WiFi.status() != WL_CONNECTED) {
     uiStatus("Reconnecting WiFi...");
 
@@ -148,42 +188,31 @@ void loop() {
 
   printHeap("before /current");
 
-  WiFiClientSecure client;
-  client.setInsecure();
-  client.setTimeout(SOCKET_TIMEOUT_MS);
-
-  if (!client.connect(SERVER_HOST, HTTPS_PORT)) {
-    Serial.println("Server connect failed");
-    delay(500);
-    return;
-  }
-
-  client.println("GET /current HTTP/1.1");
-  client.printf("Host: %s\r\n", SERVER_HOST);
-  client.println("Connection: close\r\n");
-
-  readHttpHeaders(client);
-  const String jsonPayload = readBodyDechunked(client);
-  client.stop();
-
   SpotifyCurrent current;
 
-  if (!parseSpotifyCurrent(jsonPayload, current)) {
+  if (!fetchCurrentTrack(current)) {
     delay(500);
     return;
   }
 
   if (current.status == "stopped") {
-    delay(500);
+    appState.currentID = "";
+    runInactiveScreensaver(INACTIVE_UPDATE_INTERVAL_MS);
     return;
   }
 
   if (current.id == appState.currentID) {
-    delay(UPDATE_INTERVAL_MS);
+    if (millis() - appState.lastSongChangeAt >= INACTIVITY_TIMEOUT_MS) {
+      runInactiveScreensaver(INACTIVE_UPDATE_INTERVAL_MS);
+    } else {
+      delay(UPDATE_INTERVAL_MS);
+    }
     return;
   }
 
   appState.currentID = current.id;
+  appState.lastSongChangeAt = millis();
+  appState.screensaverActive = false;
 
   uint32_t background = hexToColor(current.color);
 

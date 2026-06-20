@@ -8,6 +8,8 @@ struct AppState {
   uint32_t prevColor = 0x000000;
   bool hasPrevColor = false;
   unsigned long donutStart = 0;
+  unsigned long lastSongChangeAt = 0;
+  bool screensaverActive = false;
 };
 
 extern AppState appState;
