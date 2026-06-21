@@ -266,14 +266,11 @@ void loop() {
   }
 
   if (current.status == "stopped") {
-    if (appState.playbackScreenActive && !appState.isPlaying) {
+    if (appState.playbackScreenActive) {
       waitForNextUpdate(UPDATE_INTERVAL_MS);
-      return;
+    } else {
+      delay(UPDATE_INTERVAL_MS);
     }
-
-    appState.currentID = "";
-    appState.playbackScreenActive = false;
-    runInactiveScreensaver(INACTIVE_UPDATE_INTERVAL_MS);
     return;
   }
 

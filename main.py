@@ -116,12 +116,28 @@ def album():
 
 def toggle_playback():
     playback = sp.current_playback()
+    app.logger.info("toggle_playback current_playback=%r", playback)
 
     if playback and playback.get("is_playing"):
+        app.logger.info("toggle_playback strategy=pause_default_device")
         sp.pause_playback()
         return {"is_playing": False}
 
-    devices = sp.devices().get("devices", [])
+    app.logger.info("toggle_playback strategy=resume_default_device")
+    try:
+        sp.start_playback()
+        return {"is_playing": True}
+    except SpotifyException as exc:
+        app.logger.warning(
+            "toggle_playback default resume failed status=%s message=%s",
+            exc.http_status,
+            exc.msg,
+        )
+
+    devices_response = sp.devices()
+    devices = devices_response.get("devices", [])
+    app.logger.info("toggle_playback devices=%r", devices)
+
     active_device = next(
         (
             device for device in devices
@@ -137,7 +153,21 @@ def toggle_playback():
             "No active Spotify device. Open Spotify on a device before resuming."
         )
 
-    sp.start_playback(device_id=active_device["id"])
+    app.logger.info(
+        "toggle_playback strategy=resume_active_device device_id=%s",
+        active_device["id"],
+    )
+
+    try:
+        sp.start_playback(device_id=active_device["id"])
+    except SpotifyException as exc:
+        app.logger.error(
+            "toggle_playback device resume failed status=%s message=%s",
+            exc.http_status,
+            exc.msg,
+        )
+        raise
+
     return {"is_playing": True}
 
 CONTROL_ACTIONS = {
@@ -166,7 +196,11 @@ def control():
     except ValueError as exc:
         return jsonify({"success": False, "error": str(exc)}), 409
     except SpotifyException as exc:
-        app.logger.exception("Spotify control action failed")
+        app.logger.exception(
+            "Spotify control action failed status=%s message=%s",
+            exc.http_status,
+            exc.msg,
+        )
         return jsonify({
             "success": False,
             "error": exc.msg or "Spotify API request failed"
