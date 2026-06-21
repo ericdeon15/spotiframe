@@ -116,14 +116,14 @@ def album():
 
 def toggle_playback():
     playback = sp.current_playback()
-    app.logger.info("toggle_playback current_playback=%r", playback)
+    app.logger.warning("toggle_playback current_playback=%r", playback)
 
     if playback and playback.get("is_playing"):
-        app.logger.info("toggle_playback strategy=pause_default_device")
+        app.logger.warning("toggle_playback strategy=pause_default_device")
         sp.pause_playback()
         return {"is_playing": False}
 
-    app.logger.info("toggle_playback strategy=resume_default_device")
+    app.logger.warning("toggle_playback strategy=resume_default_device")
     try:
         sp.start_playback()
         return {"is_playing": True}
@@ -136,30 +136,32 @@ def toggle_playback():
 
     devices_response = sp.devices()
     devices = devices_response.get("devices", [])
-    app.logger.info("toggle_playback devices=%r", devices)
+    app.logger.warning("toggle_playback devices=%r", devices)
 
-    active_device = next(
-        (
-            device for device in devices
-            if device.get("is_active")
-            and device.get("id")
-            and not device.get("is_restricted")
-        ),
-        None
+    available_devices = [
+        device for device in devices
+        if device.get("id") and not device.get("is_restricted")
+    ]
+    selected_device = next(
+        (device for device in available_devices if device.get("is_active")),
+        available_devices[0] if available_devices else None,
     )
 
-    if not active_device:
+    if not selected_device:
         raise ValueError(
-            "No active Spotify device. Open Spotify on a device before resuming."
+            "No available Spotify device. Open Spotify on a device before resuming."
         )
 
-    app.logger.info(
-        "toggle_playback strategy=resume_active_device device_id=%s",
-        active_device["id"],
+    app.logger.warning(
+        "toggle_playback strategy=resume_listed_device "
+        "device_id=%s device_name=%s is_active=%s",
+        selected_device["id"],
+        selected_device.get("name"),
+        selected_device.get("is_active"),
     )
 
     try:
-        sp.start_playback(device_id=active_device["id"])
+        sp.start_playback(device_id=selected_device["id"])
     except SpotifyException as exc:
         app.logger.error(
             "toggle_playback device resume failed status=%s message=%s",
