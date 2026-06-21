@@ -6,10 +6,22 @@ import requests
 from io import BytesIO
 from PIL import Image, ImageStat
 from dotenv import load_dotenv
+import logging
 import os
+import sys
 
 load_dotenv()
 app = Flask(__name__)
+
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+log_handler = logging.StreamHandler(sys.stdout)
+log_handler.setFormatter(logging.Formatter(
+    "[%(asctime)s] %(levelname)s in %(module)s: %(message)s"
+))
+app.logger.handlers.clear()
+app.logger.addHandler(log_handler)
+app.logger.setLevel(getattr(logging, LOG_LEVEL, logging.INFO))
+app.logger.propagate = False
 
 # --- Cache state ---
 cached_track_id = None
@@ -116,14 +128,14 @@ def album():
 
 def toggle_playback():
     playback = sp.current_playback()
-    app.logger.warning("toggle_playback current_playback=%r", playback)
+    app.logger.debug("toggle_playback current_playback=%r", playback)
 
     if playback and playback.get("is_playing"):
-        app.logger.warning("toggle_playback strategy=pause_default_device")
+        app.logger.info("toggle_playback strategy=pause_default_device")
         sp.pause_playback()
         return {"is_playing": False}
 
-    app.logger.warning("toggle_playback strategy=resume_default_device")
+    app.logger.info("toggle_playback strategy=resume_default_device")
     try:
         sp.start_playback()
         return {"is_playing": True}
@@ -136,7 +148,7 @@ def toggle_playback():
 
     devices_response = sp.devices()
     devices = devices_response.get("devices", [])
-    app.logger.warning("toggle_playback devices=%r", devices)
+    app.logger.debug("toggle_playback devices=%r", devices)
 
     available_devices = [
         device for device in devices
@@ -152,7 +164,7 @@ def toggle_playback():
             "No available Spotify device. Open Spotify on a device before resuming."
         )
 
-    app.logger.warning(
+    app.logger.info(
         "toggle_playback strategy=resume_listed_device "
         "device_id=%s device_name=%s is_active=%s",
         selected_device["id"],
