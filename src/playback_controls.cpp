@@ -3,13 +3,50 @@
 #define LGFX_USE_V1
 
 #include <LovyanGFX.hpp>
-#include "Free_Sans.hpp"
 #include "LGFX.hpp"
 
 extern LGFX tft;
 
 static LGFX_Button playPauseButton;
 static bool initialized = false;
+static bool showingPause = true;
+static uint16_t controlBackground = TFT_BLACK;
+static uint16_t controlForeground = TFT_WHITE;
+
+static void drawPlayPauseIcon(
+    LovyanGFX* gfx,
+    int32_t x,
+    int32_t y,
+    int32_t w,
+    int32_t h,
+    bool inverted,
+    const char*
+) {
+  const int32_t centerX = x + w / 2;
+  const int32_t centerY = y + h / 2;
+  const int32_t radius = min(w, h) / 2 - 2;
+  const uint16_t fill = inverted ? controlForeground : controlBackground;
+  const uint16_t icon = inverted ? controlBackground : controlForeground;
+
+  gfx->fillRect(x, y, w, h, controlBackground);
+  gfx->fillCircle(centerX, centerY, radius, fill);
+  gfx->drawCircle(centerX, centerY, radius, controlForeground);
+
+  if (showingPause) {
+    gfx->fillRect(centerX - 8, centerY - 11, 5, 22, icon);
+    gfx->fillRect(centerX + 3, centerY - 11, 5, 22, icon);
+  } else {
+    gfx->fillTriangle(
+        centerX - 6,
+        centerY - 12,
+        centerX - 6,
+        centerY + 12,
+        centerX + 12,
+        centerY,
+        icon
+    );
+  }
+}
 
 static uint16_t controlTextColor(uint32_t background) {
   const uint8_t r = (background >> 16) & 0xFF;
@@ -25,15 +62,16 @@ void beginPlaybackControls() {
   playPauseButton.initButton(
       &tft,
       180,
-      425,
-      120,
-      50,
+      420,
+      64,
+      64,
       TFT_WHITE,
       TFT_BLACK,
       TFT_WHITE,
-      "Pause",
-      2
+      "",
+      1
   );
+  playPauseButton.setDrawCb(drawPlayPauseIcon);
   initialized = true;
 }
 
@@ -47,15 +85,10 @@ void drawPlaybackControl(bool isPlaying, uint32_t background) {
   );
   const uint16_t textColor = controlTextColor(background);
 
-  playPauseButton.setOutlineColor(textColor);
-  playPauseButton.setFillColor(background565);
-  playPauseButton.setTextColor(textColor);
-  playPauseButton.setLabelText(isPlaying ? "Pause" : "Play");
-
-  tft.unloadFont();
-  tft.setFont(&fonts::Font0);
+  showingPause = isPlaying;
+  controlBackground = background565;
+  controlForeground = textColor;
   playPauseButton.drawButton();
-  tft.loadFont(Free_Sans);
 }
 
 bool playbackControlPressed() {
@@ -66,5 +99,7 @@ bool playbackControlPressed() {
   const bool touched = tft.getTouch(&x, &y);
 
   playPauseButton.press(touched && playPauseButton.contains(x, y));
-  return playPauseButton.justPressed();
+  const bool pressed = playPauseButton.justPressed();
+  if (pressed) playPauseButton.drawButton(true);
+  return pressed;
 }
