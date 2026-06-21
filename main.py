@@ -117,14 +117,27 @@ def album():
 def toggle_playback():
     playback = sp.current_playback()
 
-    if not playback or not playback.get("device"):
-        raise ValueError("No active Spotify playback device")
-
-    if playback.get("is_playing"):
+    if playback and playback.get("is_playing"):
         sp.pause_playback()
         return {"is_playing": False}
 
-    sp.start_playback()
+    devices = sp.devices().get("devices", [])
+    active_device = next(
+        (
+            device for device in devices
+            if device.get("is_active")
+            and device.get("id")
+            and not device.get("is_restricted")
+        ),
+        None
+    )
+
+    if not active_device:
+        raise ValueError(
+            "No active Spotify device. Open Spotify on a device before resuming."
+        )
+
+    sp.start_playback(device_id=active_device["id"])
     return {"is_playing": True}
 
 CONTROL_ACTIONS = {
