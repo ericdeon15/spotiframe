@@ -66,5 +66,5 @@ bool playbackControlPressed() {
   const bool touched = tft.getTouch(&x, &y);
 
   playPauseButton.press(touched && playPauseButton.contains(x, y));
-  return playPauseButton.justReleased();
+  return playPauseButton.justPressed();
 }

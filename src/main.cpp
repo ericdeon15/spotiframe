@@ -127,6 +127,7 @@ static void handlePlaybackControl() {
   const bool pressed = playbackControlPressed();
   if (!appState.playbackScreenActive || !pressed) return;
 
+  const bool wasPlaying = appState.isPlaying;
   bool isPlaying = appState.isPlaying;
   if (!sendControlAction("toggle_playback", isPlaying)) {
     drawPlaybackControl(appState.isPlaying, appState.backgroundColor);
@@ -134,6 +135,9 @@ static void handlePlaybackControl() {
   }
 
   appState.isPlaying = isPlaying;
+  if (!wasPlaying && isPlaying) {
+    appState.lastSongChangeAt = millis();
+  }
   drawPlaybackControl(appState.isPlaying, appState.backgroundColor);
 }
 
@@ -270,11 +274,15 @@ void loop() {
 
   if (current.id == appState.currentID) {
     if (current.isPlaying != appState.isPlaying) {
+      if (!appState.isPlaying && current.isPlaying) {
+        appState.lastSongChangeAt = millis();
+      }
       appState.isPlaying = current.isPlaying;
       drawPlaybackControl(appState.isPlaying, appState.backgroundColor);
     }
 
-    if (millis() - appState.lastSongChangeAt >= INACTIVITY_TIMEOUT_MS) {
+    if (current.isPlaying &&
+        millis() - appState.lastSongChangeAt >= INACTIVITY_TIMEOUT_MS) {
       runInactiveScreensaver(INACTIVE_UPDATE_INTERVAL_MS);
     } else {
       waitForNextUpdate(UPDATE_INTERVAL_MS);

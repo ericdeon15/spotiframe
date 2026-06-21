@@ -62,7 +62,7 @@ sp = get_spotify_client()
 def current():
     global cached_track_id, cached_payload
 
-    track = sp.current_user_playing_track()
+    track = sp.current_playback()
 
     if not track or not track.get("item"):
         return jsonify({"status": "stopped"})
