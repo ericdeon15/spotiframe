@@ -14,6 +14,7 @@ app = Flask(__name__)
 # --- Cache state ---
 cached_track_id = None
 cached_payload = {}
+cached_device_id = None
 
 # --- Album size ---
 RESIZE_PIXELS = 420
@@ -60,12 +61,16 @@ sp = get_spotify_client()
 
 @app.route("/current")
 def current():
-    global cached_track_id, cached_payload
+    global cached_track_id, cached_payload, cached_device_id
 
     track = sp.current_playback()
 
     if not track or not track.get("item"):
         return jsonify({"status": "stopped"})
+
+    device = track.get("device") or {}
+    if device.get("id"):
+        cached_device_id = device["id"]
     
     item = track["item"]
     track_id = item["id"]
@@ -114,17 +119,45 @@ def album():
     buf.seek(0)
     return send_file(buf, mimetype="image/png")
 
+def get_playback_device_id(playback=None):
+    global cached_device_id
+
+    device = (playback or {}).get("device") or {}
+    if device.get("id"):
+        cached_device_id = device["id"]
+        return cached_device_id
+
+    if cached_device_id:
+        return cached_device_id
+
+    devices = sp.devices().get("devices", [])
+    available_devices = [
+        device for device in devices
+        if device.get("id") and not device.get("is_restricted")
+    ]
+
+    if not available_devices:
+        return None
+
+    active_device = next(
+        (device for device in available_devices if device.get("is_active")),
+        available_devices[0]
+    )
+    cached_device_id = active_device["id"]
+    return cached_device_id
+
 def toggle_playback():
     playback = sp.current_playback()
+    device_id = get_playback_device_id(playback)
 
-    if not playback or not playback.get("device"):
+    if not device_id:
         raise ValueError("No active Spotify playback device")
 
-    if playback.get("is_playing"):
-        sp.pause_playback()
+    if playback and playback.get("is_playing"):
+        sp.pause_playback(device_id=device_id)
         return {"is_playing": False}
 
-    sp.start_playback()
+    sp.start_playback(device_id=device_id)
     return {"is_playing": True}
 
 CONTROL_ACTIONS = {
