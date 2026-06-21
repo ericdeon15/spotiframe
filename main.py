@@ -1,6 +1,7 @@
-from flask import Flask, jsonify, send_file
+from flask import Flask, jsonify, request, send_file
 import spotipy
-from spotipy.oauth2 import SpotifyOAuth, SpotifyClientCredentials
+from spotipy.exceptions import SpotifyException
+from spotipy.oauth2 import SpotifyOAuth
 import requests
 from io import BytesIO
 from PIL import Image, ImageStat
@@ -16,6 +17,11 @@ cached_payload = {}
 
 # --- Album size ---
 RESIZE_PIXELS = 420
+SPOTIFY_SCOPE = (
+    "user-read-currently-playing "
+    "user-read-playback-state "
+    "user-modify-playback-state"
+)
 
 def open_image_and_color(url, get_color=True):
     response = requests.get(url)
@@ -40,14 +46,14 @@ def get_spotify_client():
             client_id=os.getenv("SPOTIPY_CLIENT_ID"),
             client_secret=os.getenv("SPOTIPY_CLIENT_SECRET"),
             redirect_uri=os.getenv("SPOTIPY_REDIRECT_URI"),
-            scope="user-read-currently-playing user-read-playback-state"
+            scope=SPOTIFY_SCOPE
         )
         auth_manager.refresh_access_token(refresh_token)
         return spotipy.Spotify(auth_manager=auth_manager)
     else:
         # Fallback for local testing
         return spotipy.Spotify(auth_manager=SpotifyOAuth(
-            scope="user-read-currently-playing user-read-playback-state"
+            scope=SPOTIFY_SCOPE
         ))
 
 sp = get_spotify_client()
@@ -64,8 +70,11 @@ def current():
     item = track["item"]
     track_id = item["id"]
     
-    # Reuse cache if track hasn’t changed
+    is_playing = bool(track.get("is_playing"))
+
+    # Reuse cached metadata if track hasn't changed, but keep playback state live.
     if track_id == cached_track_id:
+        cached_payload["is_playing"] = is_playing
         return jsonify(cached_payload)
 
     title = item["name"]
@@ -79,7 +88,8 @@ def current():
         "id": track_id,
         "album_url": album_url,
         "color" : color_hex,
-        "status": "playing"
+        "status": "playing",
+        "is_playing": is_playing
     }
 
     cached_track_id = track_id
@@ -103,6 +113,57 @@ def album():
     img.save(buf, "PNG")
     buf.seek(0)
     return send_file(buf, mimetype="image/png")
+
+def toggle_playback():
+    playback = sp.current_playback()
+
+    if not playback or not playback.get("device"):
+        raise ValueError("No active Spotify playback device")
+
+    if playback.get("is_playing"):
+        sp.pause_playback()
+        return {"is_playing": False}
+
+    sp.start_playback()
+    return {"is_playing": True}
+
+CONTROL_ACTIONS = {
+    "toggle_playback": toggle_playback,
+}
+
+@app.put("/control")
+def control():
+    payload = request.get_json(silent=True)
+
+    if not isinstance(payload, dict):
+        return jsonify({"success": False, "error": "Expected a JSON object"}), 400
+
+    action = payload.get("action")
+    handler = CONTROL_ACTIONS.get(action)
+
+    if handler is None:
+        return jsonify({
+            "success": False,
+            "error": f"Unsupported action: {action}"
+        }), 400
+
+    try:
+        result = handler()
+        return jsonify({"success": True, "action": action, **result})
+    except ValueError as exc:
+        return jsonify({"success": False, "error": str(exc)}), 409
+    except SpotifyException as exc:
+        app.logger.exception("Spotify control action failed")
+        return jsonify({
+            "success": False,
+            "error": exc.msg or "Spotify API request failed"
+        }), exc.http_status or 502
+    except Exception:
+        app.logger.exception("Unexpected control action failure")
+        return jsonify({
+            "success": False,
+            "error": "Unexpected backend error"
+        }), 500
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5050)

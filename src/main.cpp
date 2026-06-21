@@ -30,6 +30,7 @@
 
 #include "app_state.hpp"
 #include "display_renderer.hpp"
+#include "playback_controls.hpp"
 #include "screensaver.hpp"
 #include "spotify_response.hpp"
 
@@ -56,6 +57,7 @@ static void runInactiveScreensaver(uint32_t durationMs) {
     drawScreensaverLogo();
     appState.screensaverActive = true;
   }
+  appState.playbackScreenActive = false;
 
   if (!createScreensaverSprite()) {
     delay(durationMs);
@@ -86,9 +88,68 @@ static bool fetchCurrentTrack(SpotifyCurrent& current) {
   return parseSpotifyCurrent(jsonPayload, current);
 }
 
+static bool sendControlAction(const char* action, bool& isPlaying) {
+  WiFiClientSecure client;
+  client.setInsecure();
+  client.setTimeout(SOCKET_TIMEOUT_MS);
+
+  if (!client.connect(SERVER_HOST, HTTPS_PORT)) {
+    Serial.println("Control server connect failed");
+    return false;
+  }
+
+  const String payload = String("{\"action\":\"") + action + "\"}";
+
+  client.println("PUT /control HTTP/1.1");
+  client.printf("Host: %s\r\n", SERVER_HOST);
+  client.println("Content-Type: application/json");
+  client.printf("Content-Length: %u\r\n", payload.length());
+  client.println("Connection: close\r\n");
+  client.print(payload);
+
+  const String statusLine = client.readStringUntil('\n');
+  const int statusCode = statusLine.substring(9, 12).toInt();
+  readHttpHeaders(client);
+  const String responseBody = readBodyDechunked(client);
+  client.stop();
+
+  if (statusCode < 200 || statusCode >= 300) {
+    Serial.printf("Control request failed (%d): %s\n",
+                  statusCode,
+                  responseBody.c_str());
+    return false;
+  }
+
+  return parseControlResponse(responseBody, isPlaying);
+}
+
+static void handlePlaybackControl() {
+  const bool pressed = playbackControlPressed();
+  if (!appState.playbackScreenActive || !pressed) return;
+
+  bool isPlaying = appState.isPlaying;
+  if (!sendControlAction("toggle_playback", isPlaying)) {
+    drawPlaybackControl(appState.isPlaying, appState.backgroundColor);
+    return;
+  }
+
+  appState.isPlaying = isPlaying;
+  drawPlaybackControl(appState.isPlaying, appState.backgroundColor);
+}
+
+static void waitForNextUpdate(uint32_t durationMs) {
+  const uint32_t start = millis();
+
+  while (millis() - start < durationMs) {
+    handlePlaybackControl();
+    delay(20);
+  }
+}
+
 // ============================ Wi-Fi ============================
 
 static void wifiConnect() {
+  appState.playbackScreenActive = false;
   WiFi.disconnect(true, true);
   delay(200);
   WiFi.mode(WIFI_STA);
@@ -150,6 +211,7 @@ void setup() {
   tft.init();
   tft.setRotation(0);
   tft.setBrightness(255);
+  beginPlaybackControls();
 
   tft.loadFont(TITLE_FONT);
   uiClear();
@@ -172,6 +234,8 @@ void setup() {
 }
 
 void loop() {
+  handlePlaybackControl();
+
   // Keep the large sprite out of memory while HTTPS requests are active.
   deleteScreensaverSprite();
 
@@ -199,15 +263,21 @@ void loop() {
 
   if (current.status == "stopped") {
     appState.currentID = "";
+    appState.playbackScreenActive = false;
     runInactiveScreensaver(INACTIVE_UPDATE_INTERVAL_MS);
     return;
   }
 
   if (current.id == appState.currentID) {
+    if (current.isPlaying != appState.isPlaying) {
+      appState.isPlaying = current.isPlaying;
+      drawPlaybackControl(appState.isPlaying, appState.backgroundColor);
+    }
+
     if (millis() - appState.lastSongChangeAt >= INACTIVITY_TIMEOUT_MS) {
       runInactiveScreensaver(INACTIVE_UPDATE_INTERVAL_MS);
     } else {
-      delay(UPDATE_INTERVAL_MS);
+      waitForNextUpdate(UPDATE_INTERVAL_MS);
     }
     return;
   }
@@ -215,8 +285,10 @@ void loop() {
   appState.currentID = current.id;
   appState.lastSongChangeAt = millis();
   appState.screensaverActive = false;
+  appState.isPlaying = current.isPlaying;
 
   uint32_t background = hexToColor(current.color);
+  appState.backgroundColor = background;
 
   if (appState.hasPrevColor) {
     fadeBackground(appState.prevColor, background);
@@ -279,6 +351,8 @@ void loop() {
   printHeap("after /album");
 
   drawNowPlaying(current.title, current.artist, background);
+  drawPlaybackControl(appState.isPlaying, background);
+  appState.playbackScreenActive = true;
 
-  delay(UPDATE_INTERVAL_MS);
+  waitForNextUpdate(UPDATE_INTERVAL_MS);
 }

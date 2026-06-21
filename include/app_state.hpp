@@ -10,6 +10,9 @@ struct AppState {
   unsigned long donutStart = 0;
   unsigned long lastSongChangeAt = 0;
   bool screensaverActive = false;
+  bool playbackScreenActive = false;
+  bool isPlaying = false;
+  uint32_t backgroundColor = 0x000000;
 };
 
 extern AppState appState;

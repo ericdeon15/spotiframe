@@ -11,11 +11,13 @@ struct SpotifyCurrent {
   String artist;
   String id;
   String color;
+  bool isPlaying = false;
 };
 
 void readHttpHeaders(WiFiClient& c);
 String readBodyDechunked(WiFiClient& c);
 void readBodyBinary(WiFiClient& c, std::vector<uint8_t>& out);
 bool parseSpotifyCurrent(const String& jsonPayload, SpotifyCurrent& current);
+bool parseControlResponse(const String& jsonPayload, bool& isPlaying);
 
 #endif

@@ -62,6 +62,19 @@ bool parseSpotifyCurrent(const String& jsonPayload, SpotifyCurrent& current) {
   current.artist = doc["artist"].as<String>();
   current.id = doc["id"].as<String>();
   current.color = doc["color"].as<String>();
+  current.isPlaying = doc["is_playing"] | false;
 
+  return true;
+}
+
+bool parseControlResponse(const String& jsonPayload, bool& isPlaying) {
+  JsonDocument doc;
+
+  if (deserializeJson(doc, jsonPayload) || !doc["success"].as<bool>()) {
+    Serial.println("Control response parse error");
+    return false;
+  }
+
+  isPlaying = doc["is_playing"] | false;
   return true;
 }
