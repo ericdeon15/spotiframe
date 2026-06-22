@@ -28,6 +28,7 @@
 
 #include <HardwareSerial.h>
 
+#include "app_mode.hpp"
 #include "app_state.hpp"
 #include "display_renderer.hpp"
 #include "playback_controls.hpp"
@@ -51,7 +52,7 @@ LGFX_Sprite sprite(&tft);
 DonutScreensaver donut;
 PNG png;
 
-static void runInactiveScreensaver(uint32_t durationMs) {
+static bool runInactiveScreensaver(uint32_t durationMs) {
   if (!appState.screensaverActive) {
     tft.fillScreen(TFT_BLACK);
     drawScreensaverLogo();
@@ -60,11 +61,18 @@ static void runInactiveScreensaver(uint32_t durationMs) {
   appState.playbackScreenActive = false;
 
   if (!createScreensaverSprite()) {
-    delay(durationMs);
-    return;
+    const uint32_t start = millis();
+    while (millis() - start < durationMs) {
+      delay(20);
+    }
+    return true;
   }
 
-  runScreensaverUntil(millis(), durationMs, 5);
+  const uint32_t start = millis();
+  while (millis() - start < durationMs) {
+    runScreensaverFrame(5);
+  }
+  return true;
 }
 
 static bool fetchCurrentTrack(SpotifyCurrent& current) {
@@ -141,18 +149,20 @@ static void handlePlaybackControl() {
   drawPlaybackControl(appState.isPlaying, appState.backgroundColor);
 }
 
-static void waitForNextUpdate(uint32_t durationMs) {
+static bool waitForNextUpdate(uint32_t durationMs) {
   const uint32_t start = millis();
 
   while (millis() - start < durationMs) {
+    if (appState.playbackScreenActive && appModeBackPressed()) return false;
     handlePlaybackControl();
     delay(20);
   }
+  return true;
 }
 
 // ============================ Wi-Fi ============================
 
-static void wifiConnect() {
+static bool wifiConnect() {
   appState.playbackScreenActive = false;
   WiFi.disconnect(true, true);
   delay(200);
@@ -190,7 +200,9 @@ static void wifiConnect() {
   }
 
   if (WiFi.status() == WL_CONNECTED) {
-    runScreensaverUntil(appState.donutStart, 3000, 5);
+    while (millis() - appState.donutStart < 3000) {
+      runScreensaverFrame(5);
+    }
 
     tft.fillScreen(TFT_BLACK);
     tft.setTextColor(TFT_GREEN);
@@ -203,18 +215,12 @@ static void wifiConnect() {
     uiStatusBottomLeft("WiFi connection failed");
     tft.setTextColor(TFT_WHITE);
   }
+  return true;
 }
 
 // ============================ Setup / Loop ============================
 
-void setup() {
-  Serial.begin(115200);
-  Serial0.begin(115200);
-  delay(200);
-
-  tft.init();
-  tft.setRotation(0);
-  tft.setBrightness(255);
+static bool initializeSpotifyMode() {
   beginPlaybackControls();
 
   tft.loadFont(TITLE_FONT);
@@ -227,7 +233,7 @@ void setup() {
 
   printHeap("after donut sprite");
 
-  wifiConnect();
+  if (!wifiConnect()) return false;
 
   // CRITICAL: free donut sprite before HTTPS and PNG decoding.
   deleteScreensaverSprite();
@@ -235,9 +241,18 @@ void setup() {
   printHeap("after sprite delete");
 
   tft.fillScreen(TFT_BLACK);
+  return true;
 }
 
-void loop() {
+static void initializeDonutMode() {
+  createScreensaverSprite();
+  tft.fillScreen(TFT_BLACK);
+  drawScreensaverLogo();
+  drawAppModeBackButton();
+}
+
+static bool runSpotifyMode() {
+  if (appState.playbackScreenActive && appModeBackPressed()) return false;
   handlePlaybackControl();
 
   // Keep the large sprite out of memory while HTTPS requests are active.
@@ -248,12 +263,11 @@ void loop() {
 
     createScreensaverSprite();
 
-    wifiConnect();
+    if (!wifiConnect()) return false;
 
     deleteScreensaverSprite();
 
-    delay(1000);
-    return;
+    return waitForNextUpdate(1000);
   }
 
   printHeap("before /current");
@@ -261,17 +275,11 @@ void loop() {
   SpotifyCurrent current;
 
   if (!fetchCurrentTrack(current)) {
-    delay(500);
-    return;
+    return waitForNextUpdate(500);
   }
 
   if (current.status == "stopped") {
-    if (appState.playbackScreenActive) {
-      waitForNextUpdate(UPDATE_INTERVAL_MS);
-    } else {
-      delay(UPDATE_INTERVAL_MS);
-    }
-    return;
+    return waitForNextUpdate(UPDATE_INTERVAL_MS);
   }
 
   if (current.id == appState.currentID) {
@@ -285,11 +293,10 @@ void loop() {
 
     if (current.isPlaying &&
         millis() - appState.lastSongChangeAt >= INACTIVITY_TIMEOUT_MS) {
-      runInactiveScreensaver(INACTIVE_UPDATE_INTERVAL_MS);
+      return runInactiveScreensaver(INACTIVE_UPDATE_INTERVAL_MS);
     } else {
-      waitForNextUpdate(UPDATE_INTERVAL_MS);
+      return waitForNextUpdate(UPDATE_INTERVAL_MS);
     }
-    return;
   }
 
   appState.currentID = current.id;
@@ -362,7 +369,80 @@ void loop() {
 
   drawNowPlaying(current.title, current.artist, background);
   drawPlaybackControl(appState.isPlaying, background);
+  drawAppModeBackButton(background);
   appState.playbackScreenActive = true;
 
-  waitForNextUpdate(UPDATE_INTERVAL_MS);
+  return waitForNextUpdate(UPDATE_INTERVAL_MS);
+}
+
+static bool runDonutMode() {
+  if (appModeBackPressed()) return false;
+  runScreensaverFrame(10);
+  return true;
+}
+
+static void returnToStartupMenu(AppMode previousMode) {
+  if (previousMode == AppMode::Spotify) {
+    WiFi.disconnect(true, true);
+    appState = AppState{};
+  }
+
+  deleteScreensaverSprite();
+  beginAppModeMenu();
+}
+
+void setup() {
+  Serial.begin(115200);
+  Serial0.begin(115200);
+  delay(200);
+
+  tft.init();
+  tft.setRotation(0);
+  tft.setBrightness(255);
+
+  beginAppModeMenu();
+}
+
+void loop() {
+  static AppMode initializedMode = AppMode::StartupMenu;
+  const AppMode selectedMode = getAppMode();
+
+  if (selectedMode == AppMode::StartupMenu) {
+    updateAppModeMenu();
+    delay(20);
+    return;
+  }
+
+  if (initializedMode != selectedMode) {
+    bool initialized = true;
+    if (selectedMode == AppMode::Spotify) {
+      initialized = initializeSpotifyMode();
+    } else if (selectedMode == AppMode::Donut) {
+      initializeDonutMode();
+    }
+
+    if (!initialized) {
+      returnToStartupMenu(selectedMode);
+      initializedMode = AppMode::StartupMenu;
+      return;
+    }
+    initializedMode = selectedMode;
+  }
+
+  bool keepRunning = true;
+  switch (selectedMode) {
+    case AppMode::Spotify:
+      keepRunning = runSpotifyMode();
+      break;
+    case AppMode::Donut:
+      keepRunning = runDonutMode();
+      break;
+    case AppMode::StartupMenu:
+      break;
+  }
+
+  if (!keepRunning) {
+    returnToStartupMenu(selectedMode);
+    initializedMode = AppMode::StartupMenu;
+  }
 }

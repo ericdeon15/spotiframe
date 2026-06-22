@@ -15,8 +15,12 @@ void DonutScreensaver::begin(LGFX& display, LGFX_Sprite& sprite) {
   this->display = &display;
   this->sprite  = &sprite;
   
-  // Configure font metrics;
+  // Keep the ASCII grid independent of whichever UI screen ran previously.
   this->display->setFont(&fonts::Font0);
+  this->display->setTextSize(2);
+  this->sprite->setFont(&fonts::Font0);
+  this->sprite->setTextSize(1);
+  this->sprite->setTextColor(TFT_WHITE);
   this->fontWidth = this->display->textWidth("."); // mono-space font, so any character works
   this->fontHeight = this->display->fontHeight();
 
