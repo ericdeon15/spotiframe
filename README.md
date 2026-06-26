@@ -37,6 +37,8 @@ FYI: Strawberry frosted donuts are the best ones!
 
 ![ASCII Donut](assets/donut_spin.gif)
 
+For more information on `donut.c`, check out this website [here](https://www.a1k0n.net/2011/07/20/donut-math.html), which is one of the resources I used when doing my own implementation.
+
 ---
 
 ## Hardware
